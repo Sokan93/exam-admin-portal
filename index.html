@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.5);
+        }
+        .tab-btn.active {
+            border-bottom-color: #4f46e5; /* indigo-600 */
+            color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <!-- Main Container -->
+    <div id="app-container" class="container mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Password Modal -->
+        <div id="password-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
+            <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-sm">
+                <h2 class="text-2xl font-bold text-center mb-4">Admin Access</h2>
+                <p class="text-slate-500 text-center mb-6">Please enter the password to continue.</p>
+                <input type="password" id="password-input" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition mb-4" placeholder="Password">
+                <button id="password-submit" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700">Login</button>
+                <p id="password-error" class="text-red-500 text-sm mt-2 text-center"></p>
+            </div>
+        </div>
+
+        <!-- Main Content (Hidden by default) -->
+        <div id="main-content" class="hidden">
+            <h1 class="text-4xl font-bold text-slate-900 mb-6">Admin Portal</h1>
+
+            <!-- Tabs -->
+            <div class="border-b border-slate-200 mb-8">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button id="tab-management" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-indigo-600">Exam Management</button>
+                    <button id="tab-dashboard" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg text-slate-500 hover:text-slate-700">Dashboard</button>
+                </nav>
+            </div>
+
+            <!-- Exam Management View -->
+            <div id="management-view">
+                <div id="exam-list-container">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-3xl font-bold text-slate-800">Exam List</h2>
+                        <button id="add-exam-btn" class="bg-indigo-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-indigo-700">+ Add New Exam</button>
+                    </div>
+                    <div class="bg-white p-8 rounded-2xl shadow-lg">
+                        <div id="exam-list" class="space-y-4">
+                            <p id="loading-exams" class="text-slate-500">Loading exams...</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="exam-editor" class="hidden mt-10 bg-white p-8 rounded-2xl shadow-lg"></div>
+            </div>
+
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="hidden">
+                <!-- Overall Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-2xl shadow">
+                        <h3 class="text-slate-500 text-lg">Total Submissions</h3>
+                        <p id="total-submissions" class="text-4xl font-bold">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow">
+                        <h3 class="text-slate-500 text-lg">Unique Students</h3>
+                        <p id="unique-students" class="text-4xl font-bold">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow">
+                        <h3 class="text-slate-500 text-lg">Average Score</h3>
+                        <p id="average-score" class="text-4xl font-bold">0%</p>
+                    </div>
+                </div>
+                <!-- Exam Performance Section -->
+                <div class="bg-white p-8 rounded-2xl shadow-lg mb-8">
+                    <h2 class="text-2xl font-semibold mb-6">Exam Performance</h2>
+                    <select id="exam-select" class="w-full md:w-1/2 p-2 border border-slate-300 rounded-lg mb-6"></select>
+                    <div id="exam-details" class="hidden">
+                        <div class="mb-8"><canvas id="score-chart"></canvas></div>
+                        <h3 class="text-xl font-semibold mb-4">Individual Scores</h3>
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Student ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Score</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scores-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Student Report Card Section -->
+                <div class="bg-white p-8 rounded-2xl shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-6">Student Report Card</h2>
+                    <div class="flex gap-2 mb-6">
+                        <input type="text" id="student-search-input" class="w-full md:w-1/2 p-2 border border-slate-300 rounded-lg" placeholder="Enter Student ID">
+                        <button id="student-search-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700">Search</button>
+                    </div>
+                    <div id="student-report-container"></div>
+                </div>
+            </div>
+            
+            <!-- Submissions Viewer Modal (shared) -->
+            <div id="submissions-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, query, where, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyADB3h5RdKrpvIKyVCZmb70QsARMvFTg_A",
+            authDomain: "mcq-quiz-epc.firebaseapp.com",
+            projectId: "mcq-quiz-epc",
+            storageBucket: "mcq-quiz-epc.firebasestorage.app",
+            messagingSenderId: "774044608813",
+            appId: "1:774044608813:web:22db4c3b0c2a737893cba4",
+            measurementId: "G-6TJ955EYDR"
+        };
+
+        // Initialize Firebase
+        let db;
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+            document.body.innerHTML = `<div class="text-center text-red-500 p-8">Could not connect to the database.</div>`;
+        }
+        
+        // --- Authentication ---
+        const ADMIN_PASSWORD = "admin";
+        document.getElementById('password-submit').addEventListener('click', () => {
+            if (document.getElementById('password-input').value === ADMIN_PASSWORD) {
+                document.getElementById('password-modal').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                loadManagementData();
+            } else {
+                document.getElementById('password-error').textContent = "Incorrect password.";
+            }
+        });
+
+        // --- Global State ---
+        let allSubmissions = [], allExams = [], allStudents = [];
+        let scoreChart = null;
+
+        // --- DOM Elements ---
+        const managementView = document.getElementById('management-view');
+        const dashboardView = document.getElementById('dashboard-view');
+        const examEditorEl = document.getElementById('exam-editor');
+        const submissionsModalEl = document.getElementById('submissions-modal');
+        const examListContainer = document.getElementById('exam-list-container');
+
+        // --- Tab Switching Logic ---
+        const tabManagement = document.getElementById('tab-management');
+        const tabDashboard = document.getElementById('tab-dashboard');
+        tabManagement.addEventListener('click', () => switchTab('management'));
+        tabDashboard.addEventListener('click', () => switchTab('dashboard'));
+
+        function switchTab(tabName) {
+            if (tabName === 'management') {
+                managementView.classList.remove('hidden');
+                dashboardView.classList.add('hidden');
+                tabManagement.classList.add('active');
+                tabDashboard.classList.remove('active');
+            } else {
+                managementView.classList.add('hidden');
+                dashboardView.classList.remove('hidden');
+                tabManagement.classList.remove('active');
+                tabDashboard.classList.add('active');
+                loadDashboardData();
+            }
+        }
+        
+        // --- Exam Management ---
+        function loadManagementData() {
+            onSnapshot(collection(db, 'exams'), (snapshot) => {
+                const examList = document.getElementById('exam-list');
+                const loadingEl = document.getElementById('loading-exams');
+                if (loadingEl) loadingEl.classList.add('hidden');
+                examList.innerHTML = '';
+                
+                if (snapshot.empty) {
+                    examList.innerHTML = '<p class="text-slate-500">No exams found. Click "Add New Exam" to get started.</p>';
+                    return;
+                }
+                snapshot.docs.forEach(doc => {
+                    const exam = { id: doc.id, ...doc.data() };
+                    const examEl = document.createElement('div');
+                    examEl.className = 'flex justify-between items-center p-4 border rounded-lg';
+                    const studentCount = exam.allowedStudentIDs?.length || 0;
+                    const accessType = studentCount > 0 ? `${studentCount} student(s)` : 'Public';
+
+                    examEl.innerHTML = `
+                        <div>
+                            <p class="font-bold text-lg">${exam.title}</p>
+                            <p class="text-sm text-slate-500">${exam.questions?.length || 0} questions | Access: <span class="font-semibold">${accessType}</span></p>
+                        </div>
+                        <div class="space-x-2">
+                            <button data-id="${exam.id}" data-title="${exam.title}" class="submissions-btn bg-blue-500 text-white font-semibold py-1 px-3 rounded hover:bg-blue-600">View Submissions</button>
+                            <button data-id="${exam.id}" class="edit-btn bg-yellow-400 text-white font-semibold py-1 px-3 rounded hover:bg-yellow-500">Edit</button>
+                            <button data-id="${exam.id}" class="delete-btn bg-red-500 text-white font-semibold py-1 px-3 rounded hover:bg-red-600">Delete</button>
+                        </div>
+                    `;
+                    examList.appendChild(examEl);
+                });
+            });
+        }
+
+        function showEditor(show = true) {
+            examListContainer.classList.toggle('hidden', show);
+            examEditorEl.classList.toggle('hidden', !show);
+        }
+
+        function populateForm(exam) {
+            const editorHTML = `
+                <h2 id="editor-title" class="text-3xl font-bold mb-6">${exam ? `Edit Exam: ${exam.title}` : 'Create New Exam'}</h2>
+                <form id="exam-form">
+                    <input type="hidden" id="exam-id" value="${exam ? exam.id : ''}">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div><label class="block text-sm font-medium text-slate-700 mb-1">Exam Title</label><input type="text" id="exam-title-input" class="w-full px-4 py-2 border border-slate-300 rounded-lg" value="${exam ? exam.title : ''}" required></div>
+                        <div><label class="block text-sm font-medium text-slate-700 mb-1">Duration (minutes)</label><input type="number" id="exam-duration-input" class="w-full px-4 py-2 border border-slate-300 rounded-lg" value="${exam ? exam.duration / 60 : ''}" required></div>
+                    </div>
+                    <div class="mb-8"><label class="block text-sm font-medium text-slate-700 mb-1">Allowed Student IDs</label><textarea id="allowed-students-input" rows="3" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="e.g., student01, student02 (comma-separated). Leave blank for public.">${exam && exam.allowedStudentIDs ? exam.allowedStudentIDs.join(', ') : ''}</textarea></div>
+                    <h3 class="text-2xl font-semibold mb-4 border-t pt-6">Questions</h3>
+                    <div id="questions-container" class="space-y-6"></div>
+                    <button type="button" id="add-question-btn" class="mt-6 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600">+ Add Question</button>
+                    <div class="flex justify-end items-center mt-10 border-t pt-6 space-x-4">
+                        <button type="button" id="cancel-btn" class="bg-slate-200 font-bold py-2 px-6 rounded-lg">Cancel</button>
+                        <button type="submit" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg">Save Exam</button>
+                    </div>
+                </form>`;
+            examEditorEl.innerHTML = editorHTML;
+
+            if (exam && exam.questions) {
+                exam.questions.forEach(q => addQuestionToForm(q));
+            } else {
+                addQuestionToForm();
+            }
+        }
+        
+        function addQuestionToForm(question = { text: '', options: [{ text: '', answer: false }] }) {
+            const questionsContainer = document.getElementById('questions-container');
+            const questionIndex = questionsContainer.children.length;
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'p-4 border rounded-lg bg-slate-50 question-block';
+            questionDiv.innerHTML = `
+                <div class="flex justify-between items-center mb-3">
+                    <label class="block text-sm font-medium text-slate-700">Question ${questionIndex + 1}</label>
+                    <button type="button" class="remove-question-btn text-red-500 hover:text-red-700 font-semibold">Remove</button>
+                </div>
+                <textarea class="w-full p-2 border rounded-md question-text" placeholder="Enter question text" required>${question.text}</textarea>
+                <div class="mt-3">
+                    <h4 class="text-sm font-semibold mb-2">Options</h4>
+                    <div class="options-list space-y-2"></div>
+                    <button type="button" class="add-option-btn mt-2 text-sm text-blue-600 hover:text-blue-800 font-semibold">+ Add Option</button>
+                </div>`;
+            questionsContainer.appendChild(questionDiv);
+            const optionsList = questionDiv.querySelector('.options-list');
+            question.options.forEach(opt => addOptionToForm(optionsList, opt));
+        }
+
+        function addOptionToForm(optionsList, option = { text: '', answer: false }) {
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'flex items-center gap-2 option-block';
+            optionDiv.innerHTML = `
+                <input type="text" class="flex-grow p-2 border rounded-md option-text" value="${option.text}" placeholder="Option text" required>
+                <label class="flex items-center gap-1 text-sm">
+                    <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 option-answer" ${option.answer ? 'checked' : ''}> Correct
+                </label>
+                <button type="button" class="remove-option-btn text-sm text-gray-500 hover:text-red-600">✖</button>`;
+            optionsList.appendChild(optionDiv);
+        }
+
+        async function showSubmissions(examId, examTitle) { /* ... same as before ... */ }
+        async function authorizeRetake(examId, studentId) { /* ... same as before ... */ }
+
+        // --- Dashboard Functions ---
+        async function loadDashboardData() { /* ... same as before ... */ }
+        function displayOverallStats() { /* ... same as before ... */ }
+        function populateExamSelect() { /* ... same as before ... */ }
+        function displayExamDetails(examId) { /* ... same as before ... */ }
+        function renderScoreDistributionChart(submissions) { /* ... same as before ... */ }
+        function displayStudentReport(studentId) { /* ... same as before ... */ }
+
+        // --- Event Listeners ---
+        document.getElementById('add-exam-btn').addEventListener('click', () => { populateForm(null); showEditor(true); });
+        
+        document.getElementById('exam-list').addEventListener('click', async (e) => {
+            const target = e.target.closest('button');
+            if (!target) return;
+            const examId = target.dataset.id;
+            if (target.classList.contains('edit-btn')) {
+                const examsSnapshot = await getDocs(collection(db, 'exams'));
+                const examDoc = examsSnapshot.docs.find(doc => doc.id === examId);
+                if (examDoc) {
+                    populateForm({ id: examDoc.id, ...examDoc.data() });
+                    showEditor(true);
+                }
+            } else if (target.classList.contains('delete-btn')) {
+                if (confirm('Are you sure you want to delete this exam? This cannot be undone.')) {
+                    await deleteDoc(doc(db, 'exams', examId));
+                }
+            } else if (target.classList.contains('submissions-btn')) {
+                showSubmissions(examId, target.dataset.title);
+            }
+        });
+
+        examEditorEl.addEventListener('click', (e) => {
+            if (e.target.id === 'cancel-btn') {
+                showEditor(false);
+            } else if (e.target.id === 'add-question-btn') {
+                addQuestionToForm();
+            } else if (e.target.classList.contains('add-option-btn')) {
+                addOptionToForm(e.target.previousElementSibling);
+            } else if (e.target.classList.contains('remove-question-btn')) {
+                e.target.closest('.question-block').remove();
+            } else if (e.target.classList.contains('remove-option-btn')) {
+                e.target.closest('.option-block').remove();
+            }
+        });
+
+        examEditorEl.addEventListener('submit', async (e) => {
+            if (e.target.id !== 'exam-form') return;
+            e.preventDefault();
+            const form = e.target;
+            const examId = form.querySelector('#exam-id').value || doc(collection(db, 'exams')).id;
+            const allowedStudentsStr = form.querySelector('#allowed-students-input').value.trim();
+            const allowedStudentIDs = allowedStudentsStr ? allowedStudentsStr.split(',').map(id => id.trim()).filter(id => id) : [];
+            const examData = {
+                title: form.querySelector('#exam-title-input').value,
+                duration: parseInt(form.querySelector('#exam-duration-input').value) * 60,
+                allowedStudentIDs,
+                questions: []
+            };
+            form.querySelectorAll('.question-block').forEach(qDiv => {
+                const question = { text: qDiv.querySelector('.question-text').value, options: [] };
+                qDiv.querySelectorAll('.option-block').forEach(oDiv => {
+                    question.options.push({
+                        text: oDiv.querySelector('.option-text').value,
+                        answer: oDiv.querySelector('.option-answer').checked
+                    });
+                });
+                examData.questions.push(question);
+            });
+            await setDoc(doc(db, 'exams', examId), examData);
+            showEditor(false);
+        });
+
+        document.getElementById('exam-select').addEventListener('change', (e) => displayExamDetails(e.target.value));
+        document.getElementById('student-search-btn').addEventListener('click', () => {
+            const studentId = document.getElementById('student-search-input').value.trim();
+            if (studentId) displayStudentReport(studentId);
+        });
+        submissionsModalEl.addEventListener('click', (e) => {
+            if (e.target.id === 'close-submissions-btn') {
+                submissionsModalEl.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
