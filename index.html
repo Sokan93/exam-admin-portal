@@ -286,8 +286,77 @@
             optionsList.appendChild(optionDiv);
         }
 
-        async function showSubmissions(examId, examTitle) { /* ... same as before ... */ }
-        async function authorizeRetake(examId, studentId) { /* ... same as before ... */ }
+        async function showSubmissions(examId, examTitle) {
+            const modalHTML = `
+                <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4"><h2 id="submissions-title" class="text-2xl font-bold">Submissions for ${examTitle}</h2><button id="close-submissions-btn" class="text-2xl font-bold">&times;</button></div>
+                    <div id="submissions-list"><p>Loading submissions...</p></div>
+                </div>`;
+            submissionsModalEl.innerHTML = modalHTML;
+            submissionsModalEl.classList.remove('hidden');
+
+            const examsSnapshot = await getDocs(collection(db, 'exams'));
+            const examDoc = examsSnapshot.docs.find(doc => doc.id === examId);
+            const allowedStudentIDs = examDoc.data().allowedStudentIDs || [];
+
+            const submissionsQuery = query(collection(db, 'submissions'), where('examId', '==', examId));
+            const submissionsSnapshot = await getDocs(submissionsQuery);
+            const submissions = submissionsSnapshot.docs.map(doc => doc.data());
+
+            const retakesQuery = query(collection(db, 'retakes'), where('examId', '==', examId));
+            const retakesSnapshot = await getDocs(retakesQuery);
+            const retakes = retakesSnapshot.docs.map(doc => doc.data());
+
+            const submissionsList = document.getElementById('submissions-list');
+            submissionsList.innerHTML = '';
+
+            if (allowedStudentIDs.length === 0) {
+                 submissionsList.innerHTML = '<p>This is a public exam. Submissions are viewable in the Firestore console.</p>';
+                 return;
+            }
+
+            allowedStudentIDs.forEach(studentId => {
+                const studentSubmissions = submissions.filter(s => s.studentId === studentId);
+                const studentRetakes = retakes.find(r => r.studentId === studentId);
+                const allowedAttempts = (studentRetakes ? studentRetakes.allowedAttempts : 1);
+                
+                const studentEl = document.createElement('div');
+                studentEl.className = 'p-3 border-b';
+                let submissionsHtml = studentSubmissions.map((s, i) => `
+                    <div class="ml-4 text-sm">
+                        Attempt ${i + 1}: <span class="font-semibold">${parseFloat(s.score).toFixed(1)}%</span> on ${new Date(s.submittedAt.seconds * 1000).toLocaleString()}
+                    </div>
+                `).join('');
+
+                studentEl.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <p class="font-semibold">${studentId}</p>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-500">Attempts: ${studentSubmissions.length} /</span>
+                            <input type="number" value="${allowedAttempts}" min="1" class="w-16 p-1 border rounded text-center allowed-attempts-input" data-exam-id="${examId}" data-student-id="${studentId}">
+                            <button class="update-attempts-btn bg-green-500 text-white text-sm font-semibold py-1 px-2 rounded hover:bg-green-600" data-exam-id="${examId}" data-student-id="${studentId}">Update</button>
+                        </div>
+                    </div>
+                    ${submissionsHtml || '<div class="ml-4 text-sm text-slate-400">No attempts yet.</div>'}`;
+                submissionsList.appendChild(studentEl);
+            });
+        }
+
+        async function updateAttempts(examId, studentId, newCount) {
+            const retakesRef = collection(db, 'retakes');
+            const q = query(retakesRef, where('examId', '==', examId), where('studentId', '==', studentId));
+            const snapshot = await getDocs(q);
+
+            if (snapshot.empty) {
+                await addDoc(retakesRef, { examId, studentId, allowedAttempts: newCount });
+            } else {
+                const retakeDoc = snapshot.docs[0];
+                await setDoc(retakeDoc.ref, { allowedAttempts: newCount }, { merge: true });
+            }
+            alert(`Allowed attempts for ${studentId} updated to ${newCount}.`);
+            const examTitle = document.getElementById('submissions-title').textContent.replace('Submissions for ', '');
+            showSubmissions(examId, examTitle);
+        }
 
         // --- Dashboard Functions ---
         async function loadDashboardData() { /* ... same as before ... */ }
@@ -321,17 +390,11 @@
         });
 
         examEditorEl.addEventListener('click', (e) => {
-            if (e.target.id === 'cancel-btn') {
-                showEditor(false);
-            } else if (e.target.id === 'add-question-btn') {
-                addQuestionToForm();
-            } else if (e.target.classList.contains('add-option-btn')) {
-                addOptionToForm(e.target.previousElementSibling);
-            } else if (e.target.classList.contains('remove-question-btn')) {
-                e.target.closest('.question-block').remove();
-            } else if (e.target.classList.contains('remove-option-btn')) {
-                e.target.closest('.option-block').remove();
-            }
+            if (e.target.id === 'cancel-btn') showEditor(false);
+            else if (e.target.id === 'add-question-btn') addQuestionToForm();
+            else if (e.target.classList.contains('add-option-btn')) addOptionToForm(e.target.previousElementSibling);
+            else if (e.target.classList.contains('remove-question-btn')) e.target.closest('.question-block').remove();
+            else if (e.target.classList.contains('remove-option-btn')) e.target.closest('.option-block').remove();
         });
 
         examEditorEl.addEventListener('submit', async (e) => {
@@ -366,9 +429,19 @@
             const studentId = document.getElementById('student-search-input').value.trim();
             if (studentId) displayStudentReport(studentId);
         });
+        
         submissionsModalEl.addEventListener('click', (e) => {
             if (e.target.id === 'close-submissions-btn') {
                 submissionsModalEl.classList.add('hidden');
+            } else if (e.target.classList.contains('update-attempts-btn')) {
+                const { examId, studentId } = e.target.dataset;
+                const input = e.target.previousElementSibling;
+                const newCount = parseInt(input.value);
+                if (newCount >= 1) {
+                    updateAttempts(examId, studentId, newCount);
+                } else {
+                    alert('Allowed attempts must be at least 1.');
+                }
             }
         });
     </script>
