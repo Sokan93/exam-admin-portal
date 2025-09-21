@@ -127,6 +127,7 @@
     <script type="module">
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, query, where, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // --- Firebase Configuration ---
@@ -144,10 +145,12 @@
         let db;
         try {
             const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            await signInAnonymously(auth);
             db = getFirestore(app);
         } catch (error) {
             console.error("Firebase initialization failed:", error);
-            document.body.innerHTML = `<div class="text-center text-red-500 p-8">Could not connect to the database.</div>`;
+            document.body.innerHTML = `<div class="text-center text-red-500 p-8">Could not connect to the database. Check your Firebase security rules and configuration.</div>`;
         }
         
         // --- Global State ---
@@ -566,3 +569,4 @@
     </script>
 </body>
 </html>
+```
